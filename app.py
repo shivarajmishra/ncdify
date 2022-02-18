@@ -326,7 +326,7 @@ modals = html.Div(
 
 mapbox_access_token = "pk.eyJ1IjoibWF0c3VqanUiLCJhIjoiY2tmcXFiczFiMGRpdzMybzBxZmxtaTVxbiJ9.0zdao0fZdKyGb7CO8dPAVg"
 app = dash.Dash(
-    __name__, title="Global Terrorism", external_stylesheets=[dbc.themes.SUPERHERO]
+    __name__, title="Global Access Observatory", external_stylesheets=[dbc.themes.SUPERHERO]
 )
 
 server = app.server
