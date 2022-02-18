@@ -1,595 +1,891 @@
-import dash
-from dash import dcc
-from dash import html
-from dash.dependencies import Input, Output
-import plotly.graph_objs as go
+import random
 import pandas as pd
+import numpy as np
+import plotly.express as px
 
-url_confirmed = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv'
-url_deaths = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_global.csv'
-url_recovered = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_recovered_global.csv'
+import plotly.graph_objects as go
+import dash
+import dash_core_components as dcc
+import dash_html_components as html
+import dash_bootstrap_components as dbc
+from dash.dependencies import Input, Output, State
 
-confirmed = pd.read_csv(url_confirmed)
-deaths = pd.read_csv(url_deaths)
-recovered = pd.read_csv(url_recovered)
+df_copy = pd.read_csv("data/data.csv")
+attack_killed = pd.read_csv("data/attack_killed.csv")
 
-# Unpivot data frames
-date1 = confirmed.columns[4:]
-total_confirmed = confirmed.melt(id_vars=['Province/State', 'Country/Region', 'Lat', 'Long'], value_vars=date1, var_name='date', value_name='confirmed')
-date2 = deaths.columns[4:]
-total_deaths = deaths.melt(id_vars=['Province/State', 'Country/Region', 'Lat', 'Long'], value_vars=date2, var_name='date', value_name='death')
-date3 = recovered.columns[4:]
-total_recovered = recovered.melt(id_vars=['Province/State', 'Country/Region', 'Lat', 'Long'], value_vars=date3, var_name='date', value_name='recovered')
+terror_region = pd.crosstab(df_copy.year, df_copy.region_txt)
+fig1 = px.line(
+    terror_region,
+    x=terror_region.index,
+    y=terror_region.columns,
+    title=f"<b>Affected region over years</b>",
+    labels=dict(value="Attacks"),
+    
+)
 
-# Merging data frames
-covid_data = total_confirmed.merge(right=total_deaths, how='left', on=['Province/State', 'Country/Region', 'date', 'Lat', 'Long'])
-covid_data = covid_data.merge(right=total_recovered, how='left', on=['Province/State', 'Country/Region', 'date', 'Lat', 'Long'])
-
-# Converting date column from string to proper date format
-covid_data['date'] = pd.to_datetime(covid_data['date'])
-
-# Check how many missing value naN
-covid_data.isna().sum()
-
-# Replace naN with 0
-covid_data['recovered'] = covid_data['recovered'].fillna(0)
-
-# Calculate new column
-covid_data['active'] = covid_data['confirmed'] - covid_data['death'] - covid_data['recovered']
-
-covid_data_1 = covid_data.groupby(['date'])[['confirmed', 'death', 'recovered', 'active']].sum().reset_index()
-
-covid_data_2 = covid_data.groupby(['date', 'Country/Region'])[['confirmed', 'death', 'recovered', 'active']].sum().reset_index()
-
-# create dictionary of list
-covid_data_dict = covid_data[['Country/Region', 'Lat', 'Long']]
-list_locations = covid_data_dict.set_index('Country/Region')[['Lat', 'Long']].T.to_dict('dict')
-
-
-app = dash.Dash(__name__, meta_tags=[{"name": "viewport", "content": "width=device-width"}])
-
-app.layout = html.Div([
-    html.Div([
-        html.Div([
-            html.Img(src=app.get_asset_url('corona-logo-1.jpg'),
-                     id='corona-image',
-                     style={
-                         "height": "60px",
-                         "width": "auto",
-                         "margin-bottom": "25px",
-                     },
-                     )
+fig1.update_layout(
+    legend=dict(
+        
+        font=dict(family="sans-serif", size=10, color="black"),
+    ),
+    title=dict(
+        font=dict(family="Gravitas One", size=20, color="black",),
+        xanchor="left",
+        xref="container",
+    ),
+    xaxis=dict(
+        tickmode="linear",  # how tick value will change
+        tick0=1970,  # starting tick in plot along respective axis
+        dtick=1,  # gap between each ticks
+        visible=True,
+        showgrid=False,
+        range=[1970, 2017],
+    ),
+    margin=dict(autoexpand=True, r=20, l=40, t=100),
+    plot_bgcolor="#FFFFFF",
+    yaxis=dict(
+        visible=True,
+        showgrid=False,
+        linecolor="#737373",
+        ticks="outside",
+        ticksuffix="   ",
+    ),
+)
+#############
+card_graph2 = dcc.Graph(
+    id="id-graph2",
+    figure={},
+    config={
+        "displaylogo": False,
+        "doubleClick": False,
+        "modeBarButtonsToRemove": [
+            "pan2d",
+            "select2d",
+            "lasso2d",
+            "zoomIn2d",
+            "zoomOut2d",
+            "autoScale2d",
+            "toggleSpikelines",
+            "hoverCompareCartesian",
         ],
-            className="one-third column",
-        ),
-        html.Div([
-            html.Div([
-                html.H3("Covid - 19", style={"margin-bottom": "0px", 'color': 'white'}),
-                html.H5("Track Covid - 19 Cases", style={"margin-top": "0px", 'color': 'white'}),
-            ])
-        ], className="one-half column", id="title"),
-
-        html.Div([
-            html.H6('Last Updated: ' + str(covid_data_1['date'].iloc[-1].strftime("%B %d, %Y")) + '  00:01 (UTC)',
-                    style={'color': 'orange'}),
-
-        ], className="one-third column", id='title1'),
-
-    ], id="header", className="row flex-display", style={"margin-bottom": "25px"}),
-
-    html.Div([
-        html.Div([
-            html.H6(children='Global Cases',
-                    style={
-                        'textAlign': 'center',
-                        'color': 'white'}
-                    ),
-
-            html.P(f"{covid_data_1['confirmed'].iloc[-1]:,.0f}",
-                   style={
-                       'textAlign': 'center',
-                       'color': 'orange',
-                       'fontSize': 40}
-                   ),
-
-            html.P('new:  ' + f"{covid_data_1['confirmed'].iloc[-1] - covid_data_1['confirmed'].iloc[-2]:,.0f} "
-                   + ' (' + str(round(((covid_data_1['confirmed'].iloc[-1] - covid_data_1['confirmed'].iloc[-2]) /
-                                       covid_data_1['confirmed'].iloc[-1]) * 100, 2)) + '%)',
-                   style={
-                       'textAlign': 'center',
-                       'color': 'orange',
-                       'fontSize': 15,
-                       'margin-top': '-18px'}
-                   )], className="card_container three columns",
-        ),
-
-        html.Div([
-            html.H6(children='Global Deaths',
-                    style={
-                        'textAlign': 'center',
-                        'color': 'white'}
-                    ),
-
-            html.P(f"{covid_data_1['death'].iloc[-1]:,.0f}",
-                   style={
-                       'textAlign': 'center',
-                       'color': '#dd1e35',
-                       'fontSize': 40}
-                   ),
-
-            html.P('new:  ' + f"{covid_data_1['death'].iloc[-1] - covid_data_1['death'].iloc[-2]:,.0f} "
-                   + ' (' + str(round(((covid_data_1['death'].iloc[-1] - covid_data_1['death'].iloc[-2]) /
-                                       covid_data_1['death'].iloc[-1]) * 100, 2)) + '%)',
-                   style={
-                       'textAlign': 'center',
-                       'color': '#dd1e35',
-                       'fontSize': 15,
-                       'margin-top': '-18px'}
-                   )], className="card_container three columns",
-        ),
-
-        html.Div([
-            html.H6(children='Global Recovered',
-                    style={
-                        'textAlign': 'center',
-                        'color': 'white'}
-                    ),
-
-            html.P(f"{covid_data_1['recovered'].iloc[-1]:,.0f}",
-                   style={
-                       'textAlign': 'center',
-                       'color': 'green',
-                       'fontSize': 40}
-                   ),
-
-            html.P('new:  ' + f"{covid_data_1['recovered'].iloc[-1] - covid_data_1['recovered'].iloc[-2]:,.0f} "
-                   + ' (' + str(round(((covid_data_1['recovered'].iloc[-1] - covid_data_1['recovered'].iloc[-2]) /
-                                       covid_data_1['recovered'].iloc[-1]) * 100, 2)) + '%)',
-                   style={
-                       'textAlign': 'center',
-                       'color': 'green',
-                       'fontSize': 15,
-                       'margin-top': '-18px'}
-                   )], className="card_container three columns",
-        ),
-
-        html.Div([
-            html.H6(children='Global Active',
-                    style={
-                        'textAlign': 'center',
-                        'color': 'white'}
-                    ),
-
-            html.P(f"{covid_data_1['active'].iloc[-1]:,.0f}",
-                   style={
-                       'textAlign': 'center',
-                       'color': '#e55467',
-                       'fontSize': 40}
-                   ),
-
-            html.P('new:  ' + f"{covid_data_1['active'].iloc[-1] - covid_data_1['active'].iloc[-2]:,.0f} "
-                   + ' (' + str(round(((covid_data_1['active'].iloc[-1] - covid_data_1['active'].iloc[-2]) /
-                                       covid_data_1['active'].iloc[-1]) * 100, 2)) + '%)',
-                   style={
-                       'textAlign': 'center',
-                       'color': '#e55467',
-                       'fontSize': 15,
-                       'margin-top': '-18px'}
-                   )], className="card_container three columns")
-
-    ], className="row flex-display"),
-
-    html.Div([
-        html.Div([
-
-                    html.P('Select Country:', className='fix_label',  style={'color': 'white'}),
-
-                     dcc.Dropdown(id='w_countries',
-                                  multi=False,
-                                  clearable=True,
-                                  value='US',
-                                  placeholder='Select Countries',
-                                  options=[{'label': c, 'value': c}
-                                           for c in (covid_data['Country/Region'].unique())], className='dcc_compon'),
-
-                     html.P('New Cases : ' + '  ' + ' ' + str(covid_data_2['date'].iloc[-1].strftime("%B %d, %Y")) + '  ', className='fix_label',  style={'color': 'white', 'text-align': 'center'}),
-                     dcc.Graph(id='confirmed', config={'displayModeBar': False}, className='dcc_compon',
-                     style={'margin-top': '20px'},
-                     ),
-
-                      dcc.Graph(id='death', config={'displayModeBar': False}, className='dcc_compon',
-                      style={'margin-top': '20px'},
-                      ),
-
-                      dcc.Graph(id='recovered', config={'displayModeBar': False}, className='dcc_compon',
-                      style={'margin-top': '20px'},
-                      ),
-
-                      dcc.Graph(id='active', config={'displayModeBar': False}, className='dcc_compon',
-                      style={'margin-top': '20px'},
-                      ),
-
-        ], className="create_container three columns", id="cross-filter-options"),
-            html.Div([
-                      dcc.Graph(id='pie_chart',
-                              config={'displayModeBar': 'hover'}),
-                              ], className="create_container four columns"),
-
-                    html.Div([
-                        dcc.Graph(id="line_chart")
-
-                    ], className="create_container five columns"),
-
-        ], className="row flex-display"),
-
-html.Div([
-        html.Div([
-            dcc.Graph(id="map")], className="create_container1 twelve columns"),
-
-            ], className="row flex-display"),
-
-    ], id="mainContainer",
-    style={"display": "flex", "flex-direction": "column"})
-
-@app.callback(
-    Output('confirmed', 'figure'),
-    [Input('w_countries', 'value')])
-def update_confirmed(w_countries):
-    covid_data_2 = covid_data.groupby(['date', 'Country/Region'])[['confirmed', 'death', 'recovered', 'active']].sum().reset_index()
-
-    value_confirmed = covid_data_2[covid_data_2['Country/Region'] == w_countries]['confirmed'].iloc[-1] - covid_data_2[covid_data_2['Country/Region'] == w_countries]['confirmed'].iloc[-2]
-    delta_confirmed = covid_data_2[covid_data_2['Country/Region'] == w_countries]['confirmed'].iloc[-2] - covid_data_2[covid_data_2['Country/Region'] == w_countries]['confirmed'].iloc[-3]
-    return {
-            'data': [go.Indicator(
-                    mode='number+delta',
-                    value=value_confirmed,
-                    delta={'reference': delta_confirmed,
-                              'position': 'right',
-                              'valueformat': ',g',
-                              'relative': False,
-
-                              'font': {'size': 15}},
-                    number={'valueformat': ',',
-                            'font': {'size': 20},
-
-                               },
-                    domain={'y': [0, 1], 'x': [0, 1]})],
-            'layout': go.Layout(
-                title={'text': 'New Confirmed',
-                       'y': 1,
-                       'x': 0.5,
-                       'xanchor': 'center',
-                       'yanchor': 'top'},
-                font=dict(color='orange'),
-                paper_bgcolor='#1f2c56',
-                plot_bgcolor='#1f2c56',
-                height=50
-                ),
-
-            }
-
-@app.callback(
-    Output('death', 'figure'),
-    [Input('w_countries', 'value')])
-def update_confirmed(w_countries):
-    covid_data_2 = covid_data.groupby(['date', 'Country/Region'])[['confirmed', 'death', 'recovered', 'active']].sum().reset_index()
-
-    value_death = covid_data_2[covid_data_2['Country/Region'] == w_countries]['death'].iloc[-1] - covid_data_2[covid_data_2['Country/Region'] == w_countries]['death'].iloc[-2]
-    delta_death = covid_data_2[covid_data_2['Country/Region'] == w_countries]['death'].iloc[-2] - covid_data_2[covid_data_2['Country/Region'] == w_countries]['death'].iloc[-3]
-    return {
-            'data': [go.Indicator(
-                    mode='number+delta',
-                    value=value_death,
-                    delta={'reference': delta_death,
-                              'position': 'right',
-                              'valueformat': ',g',
-                              'relative': False,
-
-                              'font': {'size': 15}},
-                    number={'valueformat': ',',
-                            'font': {'size': 20},
-
-                               },
-                    domain={'y': [0, 1], 'x': [0, 1]})],
-            'layout': go.Layout(
-                title={'text': 'New Death',
-                       'y': 1,
-                       'x': 0.5,
-                       'xanchor': 'center',
-                       'yanchor': 'top'},
-                font=dict(color='#dd1e35'),
-                paper_bgcolor='#1f2c56',
-                plot_bgcolor='#1f2c56',
-                height=50
-                ),
-
-            }
-
-@app.callback(
-    Output('recovered', 'figure'),
-    [Input('w_countries', 'value')])
-def update_confirmed(w_countries):
-    covid_data_2 = covid_data.groupby(['date', 'Country/Region'])[['confirmed', 'death', 'recovered', 'active']].sum().reset_index()
-
-    value_recovered = covid_data_2[covid_data_2['Country/Region'] == w_countries]['recovered'].iloc[-1] - covid_data_2[covid_data_2['Country/Region'] == w_countries]['recovered'].iloc[-2]
-    delta_recovered = covid_data_2[covid_data_2['Country/Region'] == w_countries]['recovered'].iloc[-2] - covid_data_2[covid_data_2['Country/Region'] == w_countries]['recovered'].iloc[-3]
-    return {
-            'data': [go.Indicator(
-                    mode='number+delta',
-                    value=value_recovered,
-                    delta={'reference': delta_recovered,
-                              'position': 'right',
-                              'valueformat': ',g',
-                              'relative': False,
-
-                              'font': {'size': 15}},
-                    number={'valueformat': ',',
-                            'font': {'size': 20},
-
-                               },
-                    domain={'y': [0, 1], 'x': [0, 1]})],
-            'layout': go.Layout(
-                title={'text': 'New Recovered',
-                       'y': 1,
-                       'x': 0.5,
-                       'xanchor': 'center',
-                       'yanchor': 'top'},
-                font=dict(color='green'),
-                paper_bgcolor='#1f2c56',
-                plot_bgcolor='#1f2c56',
-                height=50
-                ),
-
-            }
-
-@app.callback(
-    Output('active', 'figure'),
-    [Input('w_countries', 'value')])
-def update_confirmed(w_countries):
-    covid_data_2 = covid_data.groupby(['date', 'Country/Region'])[['confirmed', 'death', 'recovered', 'active']].sum().reset_index()
-
-    value_active = covid_data_2[covid_data_2['Country/Region'] == w_countries]['active'].iloc[-1] - covid_data_2[covid_data_2['Country/Region'] == w_countries]['active'].iloc[-2]
-    delta_active = covid_data_2[covid_data_2['Country/Region'] == w_countries]['active'].iloc[-2] - covid_data_2[covid_data_2['Country/Region'] == w_countries]['active'].iloc[-3]
-    return {
-            'data': [go.Indicator(
-                    mode='number+delta',
-                    value=value_active,
-                    delta={'reference': delta_active,
-                              'position': 'right',
-                              'valueformat': ',g',
-                              'relative': False,
-
-                              'font': {'size': 15}},
-                    number={'valueformat': ',',
-                            'font': {'size': 20},
-
-                               },
-                    domain={'y': [0, 1], 'x': [0, 1]})],
-            'layout': go.Layout(
-                title={'text': 'New Active',
-                       'y': 1,
-                       'x': 0.5,
-                       'xanchor': 'center',
-                       'yanchor': 'top'},
-                font=dict(color='#e55467'),
-                paper_bgcolor='#1f2c56',
-                plot_bgcolor='#1f2c56',
-                height=50
-                ),
-
-            }
-
-# Create pie chart (total casualties)
-@app.callback(Output('pie_chart', 'figure'),
-              [Input('w_countries', 'value')])
-
-def update_graph(w_countries):
-    covid_data_2 = covid_data.groupby(['date', 'Country/Region'])[['confirmed', 'death', 'recovered', 'active']].sum().reset_index()
-    new_confirmed = covid_data_2[covid_data_2['Country/Region'] == w_countries]['confirmed'].iloc[-1]
-    new_death = covid_data_2[covid_data_2['Country/Region'] == w_countries]['death'].iloc[-1]
-    new_recovered = covid_data_2[covid_data_2['Country/Region'] == w_countries]['recovered'].iloc[-1]
-    new_active = covid_data_2[covid_data_2['Country/Region'] == w_countries]['active'].iloc[-1]
-    colors = ['orange', '#dd1e35', 'green', '#e55467']
-
-    return {
-        'data': [go.Pie(labels=['Confirmed', 'Death', 'Recovered', 'Active'],
-                        values=[new_confirmed, new_death, new_recovered, new_active],
-                        marker=dict(colors=colors),
-                        hoverinfo='label+value+percent',
-                        textinfo='label+value',
-                        textfont=dict(size=13),
-                        hole=.7,
-                        rotation=45
-                        # insidetextorientation='radial',
-
-
-                        )],
-
-        'layout': go.Layout(
-            # width=800,
-            # height=520,
-            plot_bgcolor='#1f2c56',
-            paper_bgcolor='#1f2c56',
-            hovermode='closest',
-            title={
-                'text': 'Total Cases : ' + (w_countries),
-
-
-                'y': 0.93,
-                'x': 0.5,
-                'xanchor': 'center',
-                'yanchor': 'top'},
-            titlefont={
-                       'color': 'white',
-                       'size': 20},
-            legend={
-                'orientation': 'h',
-                'bgcolor': '#1f2c56',
-                'xanchor': 'center', 'x': 0.5, 'y': -0.07},
-            font=dict(
-                family="sans-serif",
-                size=12,
-                color='white')
-            ),
-
-
-        }
-
-# Create bar chart (show new cases)
-@app.callback(Output('line_chart', 'figure'),
-              [Input('w_countries', 'value')])
-def update_graph(w_countries):
-# main data frame
-    covid_data_2 = covid_data.groupby(['date', 'Country/Region'])[['confirmed', 'death', 'recovered', 'active']].sum().reset_index()
-# daily confirmed
-    covid_data_3 = covid_data_2[covid_data_2['Country/Region'] == w_countries][['Country/Region', 'date', 'confirmed']].reset_index()
-    covid_data_3['daily confirmed'] = covid_data_3['confirmed'] - covid_data_3['confirmed'].shift(1)
-    covid_data_3['Rolling Ave.'] = covid_data_3['daily confirmed'].rolling(window=7).mean()
-
-    return {
-        'data': [go.Bar(x=covid_data_3[covid_data_3['Country/Region'] == w_countries]['date'].tail(30),
-                        y=covid_data_3[covid_data_3['Country/Region'] == w_countries]['daily confirmed'].tail(30),
-
-                        name='Daily confirmed',
-                        marker=dict(
-                            color='orange'),
-                        hoverinfo='text',
-                        hovertext=
-                        '<b>Date</b>: ' + covid_data_3[covid_data_3['Country/Region'] == w_countries]['date'].tail(30).astype(str) + '<br>' +
-                        '<b>Daily confirmed</b>: ' + [f'{x:,.0f}' for x in covid_data_3[covid_data_3['Country/Region'] == w_countries]['daily confirmed'].tail(30)] + '<br>' +
-                        '<b>Country</b>: ' + covid_data_3[covid_data_3['Country/Region'] == w_countries]['Country/Region'].tail(30).astype(str) + '<br>'
-
-
+    },
+)
+
+
+card_graph1 = dcc.Graph(id="id-graph1", figure={})
+card_bar_control = (
+    dcc.Dropdown(
+        id="demo-dropdown",
+        options=[
+            {"label": str(item), "value": str(item)}
+            for item in sorted(df_copy["country_txt"].unique())
+        ],
+        placeholder="Select a country...",
+        value="India",
+        optionHeight=25,
+        searchable=True,
+        search_value="",
+        clearable=True,
+    ),
+)
+
+
+card_graph3 = (
+    dcc.Graph(
+        id="cities",
+        figure={},
+        config={
+            "displaylogo": False,
+            "doubleClick": False,
+            "modeBarButtonsToRemove": [
+                "select2d",
+                "lasso2d",
+                "autoScale2d",
+                "toggleSpikelines",
+                "hoverCompareCartesian",
+            ],
+        },
+    ),
+)
+
+card_graph4 = (
+    dcc.Graph(
+        id="donut",
+        figure={},
+        config={
+            "displaylogo": False,
+            "doubleClick": False,
+            "modeBarButtonsToRemove": [
+                "select2d",
+                "lasso2d",
+                "autoScale2d",
+                "toggleSpikelines",
+                "hoverCompareCartesian",
+            ],
+        },
+    ),
+)
+
+card_graph5 = (
+    dcc.Graph(
+        id="casualities",
+        figure={},
+        config={
+            "displaylogo": False,
+            "doubleClick": False,
+            "modeBarButtonsToRemove": [
+                "select2d",
+                "lasso2d",
+                "autoScale2d",
+                "toggleSpikelines",
+                "hoverCompareCartesian",
+            ],
+        },
+    ),
+)
+
+card_graph6 = (
+    dcc.Graph(
+        id="terror-group",
+        figure={},
+        config={
+            "displaylogo": False,
+            "doubleClick": False,
+            "modeBarButtonsToRemove": [
+                "select2d",
+                "lasso2d",
+                "autoScale2d",
+                "toggleSpikelines",
+                "hoverCompareCartesian",
+            ],
+        },
+    ),
+)
+
+card_stat = dcc.Graph(
+    id="attacks",
+    figure={},
+    config={
+        "displaylogo": False,
+        "doubleClick": False,
+        "modeBarButtonsToRemove": [
+            "select2d",
+            "lasso2d",
+            "autoScale2d",
+            "toggleSpikelines",
+            "hoverCompareCartesian",
+        ],
+    },
+)
+
+target = (
+    dcc.Graph(
+        id="target",
+        figure={},
+        config={
+            "displaylogo": False,
+            "doubleClick": False,
+            "modeBarButtonsToRemove": [
+                "select2d",
+                "lasso2d",
+                "autoScale2d",
+                "toggleSpikelines",
+                "hoverCompareCartesian",
+            ],
+        },
+    ),
+)
+
+card_tab = dcc.Tabs(
+    id="tabs-with-classes",
+    value="tab-1",
+    children=[
+        dcc.Tab(
+            label="Every Life matters",
+            value="tab-1",
+            className="custom-tab",
+            selected_className="custom-tab--selected",
+            children=[
+                html.Div(
+                    [
+                        html.Div(
+                            card_graph5,
+                            style={
+                                "width": "49%",
+                                "display": "inline-block",
+                                "margin-top": "0.25%",
+                                "margin-bottom": "0%",
+                                "margin-right": "0.5%",
+                                "border-radius": "10px",
+                                # "box-shadow": "0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)",
+                            },
                         ),
-                 go.Scatter(x=covid_data_3[covid_data_3['Country/Region'] == w_countries]['date'].tail(30),
-                            y=covid_data_3[covid_data_3['Country/Region'] == w_countries]['Rolling Ave.'].tail(30),
-                            mode='lines',
-                            name='Rolling average of the last seven days - daily confirmed cases',
-                            line=dict(width=3, color='#FF00FF'),
-                            # marker=dict(
-                            #     color='green'),
-                            hoverinfo='text',
-                            hovertext=
-                            '<b>Date</b>: ' + covid_data_3[covid_data_3['Country/Region'] == w_countries]['date'].tail(30).astype(str) + '<br>' +
-                            '<b>Rolling Ave.(last 7 days)</b>: ' + [f'{x:,.0f}' for x in covid_data_3[covid_data_3['Country/Region'] == w_countries]['Rolling Ave.'].tail(30)] + '<br>'
-                            )],
-
-
-        'layout': go.Layout(
-             plot_bgcolor='#1f2c56',
-             paper_bgcolor='#1f2c56',
-             title={
-                'text': 'Last 30 Days Confirmed Cases : ' + (w_countries),
-                'y': 0.93,
-                'x': 0.5,
-                'xanchor': 'center',
-                'yanchor': 'top'},
-             titlefont={
-                        'color': 'white',
-                        'size': 20},
-
-             hovermode='x',
-             margin = dict(r = 0),
-             xaxis=dict(title='<b>Date</b>',
-                        color='white',
-                        showline=True,
-                        showgrid=True,
-                        showticklabels=True,
-                        linecolor='white',
-                        linewidth=2,
-                        ticks='outside',
-                        tickfont=dict(
-                            family='Arial',
-                            size=12,
-                            color='white'
-                        )
-
+                        html.Div(
+                            target,
+                            style={
+                                "width": "49%",
+                                "display": "inline-block",
+                                "margin-top": "0.25%",
+                                "margin-bottom": "0%",
+                                "margin-left": "1.5%",
+                                "border-radius": "10px",
+                                # "box-shadow": "0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)",
+                            },
+                        ),
+                    ],
+                )
+            ],
+        ),
+        dcc.Tab(
+            label="More Details Here",
+            value="tab-2",
+            className="custom-tab",
+            selected_className="custom-tab--selected",
+            children=[
+                html.Div(
+                    [
+                        html.Div(
+                            card_graph3,
+                            style={
+                                "width": "49%",
+                                "display": "inline-block",
+                                "margin-top": "0.25%",
+                                "margin-right": "0.5%",
+                            },
+                        ),
+                        html.Div(
+                            card_graph4,
+                            style={
+                                "width": "49%",
+                                "display": "inline-block",
+                                "margin-top": "0.25%",
+                                "margin-left": "1.5%",
+                            },
+                        ),
+                    ]
                 ),
-
-             yaxis=dict(title='<b>Daily confirmed Cases</b>',
-                        color='white',
-                        showline=True,
-                        showgrid=True,
-                        showticklabels=True,
-                        linecolor='white',
-                        linewidth=2,
-                        ticks='outside',
-                        tickfont=dict(
-                           family='Arial',
-                           size=12,
-                           color='white'
-                        )
-
+                html.Div(
+                    [
+                        html.Div(
+                            card_graph2,
+                            style={
+                                "width": "49%",
+                                "display": "inline-block",
+                                "margin-top": "0.25%",
+                                "margin-right": "0.5%",
+                                "border-radius": "10px",
+                                # "box-shadow": "0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)",
+                            },
+                        ),
+                        html.Div(
+                            card_graph6,
+                            style={
+                                "width": "49%",
+                                "display": "inline-block",
+                                "margin-top": "0.25%",
+                                "margin-left": "1.5%",
+                                "border-radius": "10px",
+                                # "box-shadow": "0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)",
+                            },
+                        ),
+                    ]
                 ),
+            ],
+        ),
+    ],
+)
 
-            legend={
-                'orientation': 'h',
-                'bgcolor': '#1f2c56',
-                'xanchor': 'center', 'x': 0.5, 'y': -0.3},
-                          font=dict(
-                              family="sans-serif",
-                              size=12,
-                              color='white'),
-
-                 )
-
-    }
-
-# Create scattermapbox chart
-@app.callback(Output('map', 'figure'),
-              [Input('w_countries', 'value')])
-def update_graph(w_countries):
-    covid_data_3 = covid_data.groupby(['Lat', 'Long', 'Country/Region'])[['confirmed', 'death', 'recovered', 'active']].max().reset_index()
-    covid_data_4 = covid_data_3[covid_data_3['Country/Region'] == w_countries]
-
-    if w_countries:
-        zoom = 2
-        zoom_lat = list_locations[w_countries]['Lat']
-        zoom_lon = list_locations[w_countries]['Long']
-
-    return {
-        'data': [go.Scattermapbox(
-                         lon=covid_data_4['Long'],
-                         lat=covid_data_4['Lat'],
-                         mode='markers',
-                         marker=go.scattermapbox.Marker(
-                                  size=covid_data_4['confirmed'] / 1500,
-                                  color=covid_data_4['confirmed'],
-                                  colorscale='hsv',
-                                  showscale=False,
-                                  sizemode='area',
-                                  opacity=0.3),
-
-                         hoverinfo='text',
-                         hovertext=
-                         '<b>Country</b>: ' + covid_data_4['Country/Region'].astype(str) + '<br>' +
-                         '<b>Longitude</b>: ' + covid_data_4['Long'].astype(str) + '<br>' +
-                         '<b>Latitude</b>: ' + covid_data_4['Lat'].astype(str) + '<br>' +
-                         '<b>Confirmed</b>: ' + [f'{x:,.0f}' for x in covid_data_4['confirmed']] + '<br>' +
-                         '<b>Death</b>: ' + [f'{x:,.0f}' for x in covid_data_4['death']] + '<br>' +
-                         '<b>Recovered</b>: ' + [f'{x:,.0f}' for x in covid_data_4['recovered']] + '<br>' +
-                         '<b>Active</b>: ' + [f'{x:,.0f}' for x in covid_data_4['active']] + '<br>'
-
-                        )],
+modals = html.Div(
+    [
+        dbc.Button(
+            "Click to see Affected Regions over the Years ",
+            id="open-centered",
+            color="dark",
+            className="mr-1",
+            style={"background-color": "crimson"},
+        ),
+        dbc.Modal(
+            [
+                dbc.ModalBody(dcc.Graph(id="regions", figure=fig1)),
+                dbc.ModalFooter(
+                    dbc.Button("Close", id="close-centered", className="ml-auto")
+                ),
+            ],
+            id="modal-centered",
+            is_open=False,
+            centered=True,
+            autoFocus=True,
+            size="xl",
+            keyboard=True,
+            fade=True,
+            backdrop=True,
+        ),
+    ]
+)
 
 
-        'layout': go.Layout(
-             margin={"r": 0, "t": 0, "l": 0, "b": 0},
-             # width=1820,
-             # height=650,
-             hovermode='closest',
-             mapbox=dict(
-                accesstoken='pk.eyJ1IjoicXM2MjcyNTI3IiwiYSI6ImNraGRuYTF1azAxZmIycWs0cDB1NmY1ZjYifQ.I1VJ3KjeM-S613FLv3mtkw',
-                center=go.layout.mapbox.Center(lat=zoom_lat, lon=zoom_lon),
-                # style='open-street-map',
-                style='dark',
-                zoom=zoom
-             ),
-             autosize=True,
+mapbox_access_token = "pk.eyJ1IjoibWF0c3VqanUiLCJhIjoiY2tmcXFiczFiMGRpdzMybzBxZmxtaTVxbiJ9.0zdao0fZdKyGb7CO8dPAVg"
+app = dash.Dash(
+    __name__, title="Global Terrorism", external_stylesheets=[dbc.themes.SUPERHERO]
+)
 
+server = app.server
+app.layout = html.Div(
+    [
+        html.Img(
+            src=app.get_asset_url("dash-logo.png"),
+            style={
+                "height": "35px",
+                "width": "auto",
+                "margin-right": "2%",
+                "padding-top": "10px",
+                "padding-bottom": "0px",
+                "display": "inline-block",
+                "float": "right",
+            },
+        ),
+        html.H1(
+            ["Terrorism Around the Globe"],
+            style={
+                "text-align": "left",
+                "margin-left": "2%",
+                "margin-right": "2%",
+                "margin-bottom": "1%",
+            },
+        ),
+        html.P(
+            [
+                "To be considered an act of terrorism, an action must be violent, or threaten violence.As such, political dissent, activism, and nonviolent resistance do not constitute terrorism. There are, however, many instances around the world of authorities restricting individuals’ freedom of expression under the pretext of counter-terrorism measures. Human rights groups, such as",
+                html.A(
+                    " Amnesty International ",
+                    href="https://www.amnesty.org/en/latest/news/",
+                ),
+                "and",
+                html.A(
+                    " Human Rights Watch ",
+                    href="https://www.hrw.org/topic/free-speech",
+                ),
+                "publish reports on such cases of censorship.",
+            ],
+            style={
+                "text-align": "left",
+                "margin-left": "2%",
+                "margin-right": "2%",
+                "margin-bottom": "2%",
+            },
+        ),
+        dbc.Row(
+            [
+                dbc.Col(
+                    card_bar_control,
+                    style={
+                        "width": "30%",
+                        "display": "inline-block",
+                        "margin-left": "2%",
+                        "margin-right": "2%",
+                        "margin-bottom": "1%",
+                        "box-shadow": "0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)",
+                        "border-radius": "10px",
+                    },
+                ),
+                dbc.Col(
+                    modals,
+                    style={
+                        "width": "30%",
+                        "display": "inline-block",
+                        "margin-left": "40%",
+                        "margin-right": "2%",
+                        "margin-bottom": "1%",
+                        "border-radius": "10px",
+                    },
+                ),
+            ],
+            no_gutters=True,
+            justify="around",
+        ),
+        dbc.Row(
+            [
+                dbc.Col(
+                    [
+                        html.H5("Drag the Slider to Change the Year:"),
+                        dcc.RangeSlider(
+                            id="year_slider",
+                            min=df_copy["year"].min(),
+                            max=df_copy["year"].max(),
+                            step=1,
+                            value=[2010, 2014],
+                            marks={
+                                item: str(item)
+                                for item in df_copy["year"].unique().tolist()[::3]
+                            },
+                        ),
+                    ],
+                    style={
+                        "margin-left": "2%",
+                        "margin-right": "2%",
+                        "margin-bottom": "1%",
+                        # "box-shadow": "0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)",
+                        "border-radius": "7px",
+                    },
+                ),
+            ],
+            no_gutters=True,
+            justify="around",
+        ),
+        dbc.Row(
+            [
+                dbc.Col(
+                    card_graph1,
+                    style={
+                        "width": "48%",
+                        "display": "inline-block",
+                        "margin-left": "2%",
+                        "padding-top": "0px",
+                        "border-radius": "10px",
+                        "box-shadow": "0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)",
+                    },
+                ),
+                dbc.Col(
+                    card_stat,
+                    style={
+                        "width": "46%",
+                        "display": "inline-block",
+                        "margin-right": "2%",
+                        "margin-left": "2%",
+                        "border-radius": "10px",
+                        "box-shadow": "0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)",
+                    },
+                ),
+            ],
+            no_gutters=True,
+            justify="around",
+        ),
+        dbc.Row(
+            dbc.Col(
+                card_tab,
+                style={
+                    "width": "96%",
+                    "margin-left": "2%",
+                    "margin-top": "1%",
+                    "margin-right": "2%",
+                },
+            ),
+        ),
+    ]
+)
+
+
+@app.callback(
+    Output("id-graph1", "figure"),
+    [Input("demo-dropdown", "value"), Input("year_slider", "value")],
+)
+def update_map(drop_value, year_value):
+    # print(year_value)
+    df_sub = df_copy.loc[
+        (df_copy["year"] >= year_value[0]) & (df_copy["year"] <= year_value[1])
+    ]
+
+    df_sub = df_sub.loc[df_sub["country_txt"] == drop_value]
+    # print(df_sub.city.head())
+
+    random.seed(11)
+    # print(df_sub.head())
+    # create graph
+    fig = go.Figure()
+    new_customdatadf = np.stack(  # stacking of columns along last axis
+        (
+            df_sub["casualities_median"],
+            df_sub["city"],
+            df_sub["year"],
+            df_sub["province"],
+        ),
+        axis=-1,
+    )
+
+    fig.add_traces(
+        go.Scattermapbox(
+            lon=df_sub["longitude"],
+            lat=df_sub["latitude"],
+            mode="markers",
+            marker=dict(size=10, allowoverlap=False, opacity=0.7, color="crimson"),
+            # text=df_sub["casualities_median"],
+            customdata=new_customdatadf,  # we have to first stack the columns along the last axis
+            hovertemplate="""<extra></extra>lat: %{lat}<br>long: %{lon}<br>casualities: %{customdata[0]}<br>city: %{customdata[1]}<br>State: %{customdata[3]}<br>attack happened in: %{customdata[2]}""",
+        ),
+    )
+
+    fig.update_layout(
+        title=dict(
+            text=f"<b>Satellite Overview of {drop_value}</b>",
+            font=dict(family="Cabin Sketch", size=20, color="black",),
+            xanchor="left",
+            xref="container",
+        ),
+        uirevision="foo",
+        hovermode="closest",
+        hoverdistance=2,
+        mapbox=dict(
+            accesstoken=mapbox_access_token,
+            style="dark",
+            center=dict(
+                lat=random.choice(df_sub["latitude"].tolist()),
+                lon=random.choice(df_sub["longitude"].tolist()),
+            ),
+            zoom=5,
+        ),
+    )
+    return fig
+
+
+@app.callback(
+    Output("attacks", "figure"),
+    [Input("demo-dropdown", "value"), Input("year_slider", "value")],
+)
+def attack_kill(drop_value, year_value):
+    dff = attack_killed.loc[
+        (attack_killed["year"] >= year_value[0])
+        & (attack_killed["year"] <= year_value[1])
+    ]
+    dff = dff.loc[dff["country_txt"] == drop_value]
+    fig = px.sunburst(
+        dff,
+        path=["country_txt", "year", "Attacks", "killed"],
+        color="year",
+        labels={"country_txt": "Country"},
+        color_discrete_sequence=[
+            "#0d0887",
+            "#46039f",
+            "#7201a8",
+            "#9c179e",
+            "#bd3786",
+            "#d8576b",
+            "#ed7953",
+            "#fb9f3a",
+            "#fdca26",
+            "#f0f921",
+        ],
+        maxdepth=-1,
+        branchvalues="remainder",
+        hover_data=["country_txt", "year", "Attacks", "killed"],
+        # template="ggplot2",
+        title=f"<b>Terror Attacks Vs People Killed in {drop_value}</b>",
+    )
+    text = []
+
+    for w in fig.data[0].ids:
+        if "/" not in w:
+            text.append(f"Country: {w}")
+        else:
+            sw = w.split("/")
+            if len(sw) == 2:
+                text.append(f"Country: {sw[0]}<br>Year: {sw[1]}")
+            elif len(sw) == 3:
+                text.append(f"Country: {sw[0]}<br>Year: {sw[1]}<br>Attacks: {sw[2]}")
+            elif len(sw) == 4:
+                text.append(
+                    f"Country: {sw[0]}<br>Year: {sw[1]}<br>Attacks: {sw[2]}<br>Killed: {sw[3]}"
+                )
+            else:
+                pass
+    fig.update_traces(text=text, textinfo="text", hoverinfo="text", hovertemplate=None)
+
+    fig.update_layout(
+        title=dict(
+            font=dict(family="Cabin Sketch", size=20, color="black",),
+            xanchor="left",
+            xref="container",
+        ),
+        coloraxis_showscale=False,
+    )
+    return fig
+
+
+@app.callback(Output("id-graph2", "figure"), [Input("demo-dropdown", "value")])
+def pie2(drop_value):
+
+    dff = df_copy.loc[df_copy["country_txt"] == drop_value]
+
+    fig = px.pie(
+        dff,
+        names=dff["weapon_type"].value_counts()[:9].index,
+        values=dff["weapon_type"].value_counts()[:9],
+        # labels={"index": "", "value": ""},
+        color=dff["weapon_type"].value_counts()[:9],
+        hole=0.4,
+        color_discrete_sequence=[
+            # "#800026",
+            "#bd0026",
+            "#e31a1c",
+            "#fc4e2a",
+            "#fd8d3c",
+            " #feb24c",
+            "#fed976",
+            " #ffeda0",
+            " #ffffcc",
+        ],
+        # hover_name=dff["weapon_type"].value_counts()[:10].index,
+    )
+    fig.update_traces(
+        hovertemplate=None, hoverinfo="all", rotation=45,
+    )
+    fig.update_layout(
+        title=dict(
+            text=f"<b>Weapons used in {drop_value}</b>",
+            font=dict(family="Cabin Sketch", size=20, color="black",),
+            xanchor="left",
+            xref="container",
+        ),
+    )
+    return fig
+
+
+@app.callback(Output("cities", "figure"), [Input("demo-dropdown", "value")])
+def bar_graph2(drop_value):
+    dff_sub = df_copy.loc[df_copy["country_txt"] == drop_value]
+
+    # Figure1
+
+    fig = px.bar(
+        dff_sub["city"].value_counts()[:10].sort_values(ascending=True),
+        orientation="h",
+        title="<b>Top 10 cities which are badly affected by Terrorism</b> <br>        <i>(Cities vs Attack Counts)</i></br>",
+        labels={"index": "", "value": ""},
+        color=dff_sub["city"].value_counts()[:10].sort_values(ascending=True),
+        # color_continuous_scale=["#bdbdbd", "#969696", "#737373", "#525252",],
+        color_continuous_scale=["#ff6969", "#d34949", "#da3232", "#b80000", "#620000"],
+    )
+    fig.update_traces(hovertemplate=None, hoverinfo="all")
+    fig.update_layout(
+        title=dict(
+            font=dict(family="Cabin Sketch", size=20, color="black",),
+            xanchor="left",
+            xref="container",
+        ),
+        coloraxis_showscale=False,
+        plot_bgcolor="#FFFFFF",
+        legend={"bordercolor": "red", "borderwidth": 1},
+        xaxis=dict(
+            showticklabels=True,
+            visible=True,
+            showgrid=False,
+            ticks="outside",
+            # title=dict(font=dict(family="Balto", size=15)),
+        ),
+        yaxis=dict(
+            showticklabels=True,
+            visible=True,
+            showgrid=False,
+            # title=dict(font=dict(family="Balto", size=15)),
+            tickfont=dict(family="Balto", size=19, color="black"),
+            ticksuffix="   ",
+        ),
+    )
+
+    return fig
+    # Figure2
+
+
+@app.callback(Output("donut", "figure"), [Input("demo-dropdown", "value")])
+def pie1(drop_value):
+    dff_sub = df_copy.loc[df_copy["country_txt"] == drop_value]
+    dic = {0: "Unsuccessful Attempt", 1: "Successful Attempt"}
+    dff_sub["success"] = dff_sub["success"].map(dic)
+
+    fig = px.pie(
+        dff_sub,
+        names=dff_sub["success"].value_counts().index,
+        values=dff_sub["success"].value_counts(),
+        hole=0.4,
+        # hover_name=dff_sub["success"].value_counts().index,
+        color_discrete_sequence=["#bd0026", " #ffffcc"],
+    )
+
+    fig.update_traces(hovertemplate=None, hoverinfo="all")
+    fig.update_layout(
+        title=dict(
+            text=f"<b>Success Rate of Terror Attacks in {drop_value}</b>",
+            font=dict(family="Cabin Sketch", size=20, color="black",),
+            xanchor="left",
+            xref="container",
         )
+    )
 
-    }
+    return fig
+    # Figure3
 
-if __name__ == '__main__':
-    app.run_server(debug=True)
+
+@app.callback(Output("casualities", "figure"), [Input("demo-dropdown", "value")])
+def line_graph(drop_value):
+    dff_sub = (
+        df_copy.loc[df_copy["country_txt"] == drop_value]
+        .groupby(["year"])["casualities"]
+        .sum()
+    )
+    dff_sub1 = (
+        df_copy.loc[df_copy["country_txt"] == drop_value]
+        .groupby(["year"])["killed"]
+        .sum()
+    )
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=dff_sub.index,
+            y=dff_sub.values,
+            name="casualities",
+            line=dict(color="crimson", width=3),
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=dff_sub1.index,
+            y=dff_sub1.values,
+            name="killed",
+            line=dict(color="red", width=3, dash="dashdot"),
+        )
+    )
+    fig.update_layout(
+        title=dict(
+            text="<b> Casualities+Killings over the Year </b> ",
+            font=dict(family="Cabin Sketch", size=20, color="black",),
+            xanchor="left",
+            xref="container",
+        ),
+        hovermode="x",  # it shows the value along x-axis ticks on hovering in plot
+        hoverdistance=20000,  # distance above/right of the plot till where the user can hover
+        spikedistance=20000,  # length of spike according to data max value
+        xaxis=dict(
+            tickmode="linear",  # how tick value will change
+            tick0=1970,  # starting tick in plot along respective axis
+            dtick=1,  # gap between each ticks
+            visible=True,
+            showgrid=False,
+            showspikes=True,  # Show spike line for X-axis
+            # Format spike
+            spikethickness=2,
+            spikedash="dot",
+            spikecolor="#999999",
+            spikemode="across",
+            linecolor="#737373",
+            range=[1970, 2017],
+        ),
+        margin=dict(autoexpand=True, r=10, l=40, t=100),
+        plot_bgcolor="#FFFFFF",
+        yaxis=dict(
+            visible=True,
+            showgrid=False,
+            linecolor="#737373",
+            ticks="outside",
+            ticksuffix="   ",
+        ),
+    )
+
+    return fig
+    # Figure4
+
+
+@app.callback(Output("target", "figure"), [Input("demo-dropdown", "value")])
+def target_graph(drop_value):
+    dff_sub = df_copy[df_copy["country_txt"] == drop_value]
+    fig = px.bar(
+        dff_sub["target_type"].value_counts()[:10].sort_values(ascending=True),
+        orientation="h",
+        title="<b>Favourite Targets</b> <br> <i>(Target vs Attack Counts)</i></br>",
+        labels={"index": "", "value": ""},
+        color=dff_sub["target_type"].value_counts()[:10].sort_values(ascending=True),
+        # color_continuous_scale=["#bdbdbd", "#969696", "#737373", "#525252",],
+        color_continuous_scale=["#ff6969", "#d34949", "#da3232", "#b80000", "#620000"],
+    )
+    fig.update_traces(hovertemplate=None, hoverinfo="all")
+    fig.update_layout(
+        title=dict(
+            font=dict(family="Cabin Sketch", size=20, color="black",),
+            xanchor="left",
+            xref="container",
+        ),
+        coloraxis_showscale=False,
+        plot_bgcolor="#FFFFFF",
+        legend={"bordercolor": "red", "borderwidth": 1},
+        xaxis=dict(
+            showticklabels=True,
+            visible=True,
+            showgrid=False,
+            ticks="outside",
+            # title=dict(font=dict(family="Balto", size=15)),
+        ),
+        yaxis=dict(
+            showticklabels=True,
+            visible=True,
+            showgrid=False,
+            # title=dict(font=dict(family="Balto", size=15)),
+            tickfont=dict(family="Balto", size=19, color="black"),
+            ticksuffix="   ",
+        ),
+    )
+    return fig
+
+
+@app.callback(Output("terror-group", "figure"), [Input("demo-dropdown", "value")])
+def bar_graph3(drop_value):
+    dff_sub = df_copy.loc[df_copy["country_txt"] == drop_value]
+
+    fig = px.bar(
+        dff_sub["group"].value_counts()[:10],
+        orientation="v",  # orientation of axes
+        title=f"<b>Terror Groups Active/was active in {drop_value}</b> <br>  <i> (Attack Counts vs Terror Groups)</i></br>",
+        labels={"index": "", "value": ""},  # renaming axes titles
+        color=dff_sub["group"].value_counts()[:10],
+        # color_continuous_scale=["#bdbdbd", "#969696", "#737373", "#525252",],
+        color_continuous_scale=["#ff6969", "#d34949", "#da3232", "#b80000", "#620000"],
+        # height=575,  # height of chart (not plot area)
+    )
+    fig.update_traces(hovertemplate=None, hoverinfo="all")
+    fig.update_layout(
+        # changes related to title of chart
+        title=dict(
+            font=dict(family="Cabin Sketch", size=20, color="black",),
+            xanchor="left",  # title start from left of chart area
+            xref="container",  # where to put the title along x-direction (container: whole chart length is used)
+        ),
+        margin=dict(autoexpand=True, b=280),  # margin of chart area (l ,r ,t, b ,pad)
+        coloraxis_showscale=False,  # hide colorscale
+        plot_bgcolor="#FFFFFF",  # color of plot area
+        # changes related to yaxis
+        yaxis=dict(
+            visible=True,  # show the ticks and labels
+            showgrid=False,  # hide the gridlines
+            ticks="outside",
+            ticksuffix="   ",
+            # title=dict(font=dict(family="Balto", size=15))  # changes in title of y-axis
+        ),
+        # changes related to x-axis
+        xaxis=dict(
+            visible=True,
+            showgrid=False,
+            # title=dict(font=dict(family="Balto", size=15), standoff=5),
+            tickfont=dict(
+                family="Balto", size=17, color="black"
+            ),  # changes related to ticks
+            ticksuffix="   ",  # manages gap between ticks and axis title
+            automargin=True,  # self-explanatory
+            tickangle=45,  # changes the angle of ticks
+        ),
+    )
+
+    return fig
+
+
+@app.callback(
+    Output("modal-centered", "is_open"),
+    [Input("open-centered", "n_clicks"), Input("close-centered", "n_clicks")],
+    [State("modal-centered", "is_open")],
+)
+def toggle_modal(n1, n2, is_open):
+    if n1 or n2:
+        return not is_open
+    return is_open
+
+
+if __name__ == "__main__":
+    app.run_server(debug=False)
+
