@@ -5,8 +5,8 @@ import plotly.express as px
 
 import plotly.graph_objects as go
 import dash
-import dash_core_components as dcc
-import dash_html_components as html
+from dash import dcc
+from dash import html
 import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output, State
 
@@ -345,7 +345,7 @@ app.layout = html.Div(
             },
         ),
         html.H1(
-            ["Terrorism Around the Globe"],
+            ["Global Access Observatory"],
             style={
                 "text-align": "left",
                 "margin-left": "2%",
@@ -355,17 +355,21 @@ app.layout = html.Div(
         ),
         html.P(
             [
-                "To be considered an act of terrorism, an action must be violent, or threaten violence.As such, political dissent, activism, and nonviolent resistance do not constitute terrorism. There are, however, many instances around the world of authorities restricting individuals’ freedom of expression under the pretext of counter-terrorism measures. Human rights groups, such as",
+                "Currently being developed, this dashboard presents information on access to lifesaving medicines and diagnostics around the globe - with the aim to show differences within and across countries. Data for this dashboard are derived from existing WHO/HAI surveys - gathered through a systematic literature searches (across several databases, such as",
                 html.A(
-                    " Amnesty International ",
-                    href="https://www.amnesty.org/en/latest/news/",
+                    "Public Library of Medicine",
+                    href="https://pubmed.ncbi.nlm.nih.gov/",
+                ),
+                ",",
+                html.A(
+                    "Health Action International",
+                    href="https://haiweb.org/what-we-do/price-availability-affordability/price-availability-data/",
                 ),
                 "and",
                 html.A(
-                    " Human Rights Watch ",
-                    href="https://www.hrw.org/topic/free-speech",
-                ),
-                "publish reports on such cases of censorship.",
+                    "Access Observatory ",
+                    href="https://www.accessobservatory.org/",
+                )
             ],
             style={
                 "text-align": "left",
@@ -400,7 +404,7 @@ app.layout = html.Div(
                     },
                 ),
             ],
-            no_gutters=True,
+            className="g-0",
             justify="around",
         ),
         dbc.Row(
@@ -429,7 +433,7 @@ app.layout = html.Div(
                     },
                 ),
             ],
-            no_gutters=True,
+            className="g-0",
             justify="around",
         ),
         dbc.Row(
@@ -457,7 +461,7 @@ app.layout = html.Div(
                     },
                 ),
             ],
-            no_gutters=True,
+            className="g-0",
             justify="around",
         ),
         dbc.Row(
