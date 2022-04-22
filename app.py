@@ -326,7 +326,7 @@ modals = html.Div(
 
 mapbox_access_token = "pk.eyJ1IjoibWF0c3VqanUiLCJhIjoiY2tmcXFiczFiMGRpdzMybzBxZmxtaTVxbiJ9.0zdao0fZdKyGb7CO8dPAVg"
 app = dash.Dash(
-    __name__, title="Global Access Observatory", external_stylesheets=[dbc.themes.SUPERHERO]
+    __name__, title="CVD Health Observatory", external_stylesheets=[dbc.themes.SUPERHERO]
 )
 
 server = app.server
@@ -345,7 +345,7 @@ app.layout = html.Div(
             },
         ),
         html.H1(
-            ["Global Access Observatory"],
+            ["CVD Health Observatory"],
             style={
                 "text-align": "left",
                 "margin-left": "2%",
@@ -355,7 +355,7 @@ app.layout = html.Div(
         ),
         html.P(
             [
-                "Currently being developed, this dashboard presents information on access to lifesaving medicines and diagnostics around the globe - with the aim to show differences within and across countries. Data for this dashboard are derived from existing WHO/HAI surveys - gathered through a systematic literature searches (across several databases, such as",
+                "Currently being developed, this dashboard presents information on disparaties affecting CVD heatlh including access to health services, lifesaving medicines and diagnostics around the globe - with the aim to show differences within and across countries. Data for this dashboard are derived from existing sources such as the Global Burden of Disease (GBDx), WHO/HAI surveys - gathered through a systematic literature searches (across several databases, such as",
                 html.A(
                     "Public Library of Medicine",
                     href="https://pubmed.ncbi.nlm.nih.gov/",
@@ -572,7 +572,7 @@ def attack_kill(drop_value, year_value):
         branchvalues="remainder",
         hover_data=["country_txt", "year", "Attacks", "killed"],
         # template="ggplot2",
-        title=f"<b>Terror Attacks Vs People Killed in {drop_value}</b>",
+        title=f"<b>Key drivers of CVD deaths {drop_value}</b>",
     )
     text = []
 
@@ -634,7 +634,7 @@ def pie2(drop_value):
     )
     fig.update_layout(
         title=dict(
-            text=f"<b>Weapons used in {drop_value}</b>",
+            text=f"<b>Modes of delivery in {drop_value}</b>",
             font=dict(family="Cabin Sketch", size=20, color="black",),
             xanchor="left",
             xref="container",
@@ -652,7 +652,7 @@ def bar_graph2(drop_value):
     fig = px.bar(
         dff_sub["city"].value_counts()[:10].sort_values(ascending=True),
         orientation="h",
-        title="<b>Top 10 cities which are badly affected by Terrorism</b> <br>        <i>(Cities vs Attack Counts)</i></br>",
+        title="<b>Top 10 cities with highest numbers of CVD deaths</b> <br>        <i>(Cities vs Attack Counts)</i></br>",
         labels={"index": "", "value": ""},
         color=dff_sub["city"].value_counts()[:10].sort_values(ascending=True),
         # color_continuous_scale=["#bdbdbd", "#969696", "#737373", "#525252",],
@@ -707,7 +707,7 @@ def pie1(drop_value):
     fig.update_traces(hovertemplate=None, hoverinfo="all")
     fig.update_layout(
         title=dict(
-            text=f"<b>Success Rate of Terror Attacks in {drop_value}</b>",
+            text=f"<b>Population coverage of CVD interventions {drop_value}</b>",
             font=dict(family="Cabin Sketch", size=20, color="black",),
             xanchor="left",
             xref="container",
@@ -736,7 +736,7 @@ def line_graph(drop_value):
         go.Scatter(
             x=dff_sub.index,
             y=dff_sub.values,
-            name="casualities",
+            name="IHD",
             line=dict(color="crimson", width=3),
         )
     )
@@ -744,13 +744,13 @@ def line_graph(drop_value):
         go.Scatter(
             x=dff_sub1.index,
             y=dff_sub1.values,
-            name="killed",
+            name="Stroke",
             line=dict(color="red", width=3, dash="dashdot"),
         )
     )
     fig.update_layout(
         title=dict(
-            text="<b> Casualities+Killings over the Year </b> ",
+            text="<b> CVD deaths over the Year </b> ",
             font=dict(family="Cabin Sketch", size=20, color="black",),
             xanchor="left",
             xref="container",
@@ -794,7 +794,7 @@ def target_graph(drop_value):
     fig = px.bar(
         dff_sub["target_type"].value_counts()[:10].sort_values(ascending=True),
         orientation="h",
-        title="<b>Favourite Targets</b> <br> <i>(Target vs Attack Counts)</i></br>",
+        title="<b>List of interventions</b> <br> <i>(Lifestyle vs non-lifestyle based intervention)</i></br>",
         labels={"index": "", "value": ""},
         color=dff_sub["target_type"].value_counts()[:10].sort_values(ascending=True),
         # color_continuous_scale=["#bdbdbd", "#969696", "#737373", "#525252",],
@@ -836,7 +836,7 @@ def bar_graph3(drop_value):
     fig = px.bar(
         dff_sub["group"].value_counts()[:10],
         orientation="v",  # orientation of axes
-        title=f"<b>Terror Groups Active/was active in {drop_value}</b> <br>  <i> (Attack Counts vs Terror Groups)</i></br>",
+        title=f"<b>CVD interventions was active in {drop_value}</b> <br>  <i> (Lifestyle vs non-lifestyle based interventions)</i></br>",
         labels={"index": "", "value": ""},  # renaming axes titles
         color=dff_sub["group"].value_counts()[:10],
         # color_continuous_scale=["#bdbdbd", "#969696", "#737373", "#525252",],
